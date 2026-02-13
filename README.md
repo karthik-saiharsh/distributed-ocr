@@ -1,19 +1,18 @@
 # README
 
-## About
+## Project Setup
 
-This is the official Wails React-TS template.
+#### Step 1: Installing Wails:
+- To Install Wails, you must have Go installed first. (https://go.dev/doc/install)
+- After you install Go, to install visit (https://wails.io/docs/gettingstarted/installation) instructions are available for windows, mac and linux
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
+> Note: A few additional steps are required for setting up wails on linux, this is also mentioned in the installation link.
 
-## Live Development
-
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
-
-## Building
-
-To build a redistributable, production mode package, use `wails build`.
+#### Step 2: Development
+- The Project has a `/frontend` directory which has the source for all the frontend, with `react` and `vite` project with `npm`.
+- For developing frontend, `cd` into `/frontend` and run `npm run dev` (you have to install dependencies first (`npm install`))
+- For those developing the backend, the `app.go` is the file to expose all the functions that will be available in the frontend.
+- To run the backend you have to run `wails dev` in the root of this project.
+- On linux alone you have to run it with `wails dev -tags webkit2_41`.
+- `main.go` has the setup and details of the App. There mostly won't be any need to edit this file.
+- Lastly, any new feature you plan to add, make a new branch and send a PR, do not commit to main directly.
