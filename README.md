@@ -16,3 +16,4 @@
 - On linux alone you have to run it with `wails dev -tags webkit2_41`.
 - `main.go` has the setup and details of the App. There mostly won't be any need to edit this file.
 - Lastly, any new feature you plan to add, make a new branch and send a PR, do not commit to main directly.
+- Anytime you want to change the frontend, install new dependencies or tools, or run any `npm` related command, do it only in `/frontend` directory.
