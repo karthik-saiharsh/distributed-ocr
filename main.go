@@ -8,14 +8,15 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
-//go:embed all:frontend/dist
+// embed the assets directly into the compiled binary
+// to avoid shipping required resources in final bundle
 var assets embed.FS
 
 func main() {
-	// Create an instance of the app structure
+	// Create a new app structure
 	app := NewApp()
 
-	// Create application with options
+	// define application options
 	err := wails.Run(&options.App{
 		Title:  "Distributed OCR",
 		Width:  1024,
@@ -23,8 +24,8 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		// BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup: app.startup,
+		OnStartup:  app.startup,
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},
