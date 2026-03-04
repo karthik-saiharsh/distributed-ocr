@@ -8,4 +8,4 @@ export function KillNode():Promise<void>;
 
 export function ScanForNodes():Promise<void>;
 
-export function UploadDocument():Promise<void>;
+export function UploadDocument():Promise<number>;

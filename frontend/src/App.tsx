@@ -6,6 +6,8 @@ import { swim } from '../wailsjs/go/models';
 const App = () => {
   const [nodes, setNodes] = useState<swim.Node[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [completedDocs, setCompletedDocs] = useState<{ jobId: string, text: string }[]>([]);
 
   useEffect(() => {
     // Populate the list immediately from whatever the backend already knows.
@@ -13,12 +15,24 @@ const App = () => {
 
     // Keep the list live: every time the SWIM layer discovers or loses a node
     // it emits "cluster:update" with the full current snapshot.
-    const unsub = EventsOn('cluster:update', (updated: swim.Node[]) => {
+    const unsubCluster = EventsOn('cluster:update', (updated: swim.Node[]) => {
       setNodes(updated ?? []);
     });
 
+    // Listen for Fully Completed OCR Job results from the Master Node
+    const unsubDocs = EventsOn('document:complete', (payload: any) => {
+      setCompletedDocs(prev => [{
+        jobId: payload.jobId,
+        text: payload.text
+      }, ...prev]);
+      setUploadStatus(`🎉 Document ${payload.jobId} fully extracted across the cluster!`);
+    });
+
     // Clean up the listener if the component ever unmounts.
-    return () => { unsub(); };
+    return () => {
+      unsubCluster();
+      unsubDocs();
+    };
   }, []);
 
   const handleScan = () => {
@@ -29,7 +43,14 @@ const App = () => {
   };
 
   const handleUpload = () => {
-    UploadDocument();
+    setUploadStatus('Dispatching tasks...');
+    UploadDocument().then((numPages: number) => {
+      setTimeout(() => setUploadStatus(`✅ ${numPages} Tasks successfully dispatched to cluster! Check terminal logs to watch the Workers steal them.`), 500);
+      setTimeout(() => setUploadStatus(''), 7000);
+    }).catch((err: any) => {
+      setUploadStatus(`❌ Error: ${err}`);
+      setTimeout(() => setUploadStatus(''), 5000);
+    });
   };
 
   return (
@@ -54,6 +75,12 @@ const App = () => {
         </button>
       </div>
 
+      {uploadStatus && (
+        <div className="mb-6 p-4 rounded bg-gray-50 border border-gray-200 text-sm font-medium text-gray-800">
+          {uploadStatus}
+        </div>
+      )}
+
       <div className="mt-6 border-t pt-4">
         <p className="font-semibold mb-2">Nodes found: {nodes.length}</p>
         {nodes.length === 0 ? (
@@ -66,6 +93,22 @@ const App = () => {
           ))
         )}
       </div>
+
+      {completedDocs.length > 0 && (
+        <div className="mt-8 border-t pt-6">
+          <h2 className="text-xl font-bold mb-4 text-green-700">✅ Distributed OCR Results</h2>
+          <div className="flex flex-col gap-6">
+            {completedDocs.map((doc, idx) => (
+              <div key={idx} className="bg-white border text-left border-green-200 rounded p-4 shadow-sm">
+                <p className="text-xs font-mono text-gray-500 mb-2 font-bold bg-gray-100 p-2 border-b block pb-2">Job Hash: {doc.jobId}</p>
+                <div className="text-sm font-mono whitespace-pre-wrap p-2 text-gray-800">
+                  {doc.text}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
