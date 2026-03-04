@@ -4,8 +4,8 @@ import {swim} from '../models';
 
 export function GetClusterNodes():Promise<Array<swim.Node>>;
 
-export function Greet(arg1:string):Promise<string>;
-
 export function KillNode():Promise<void>;
 
 export function ScanForNodes():Promise<void>;
+
+export function UploadDocument():Promise<void>;

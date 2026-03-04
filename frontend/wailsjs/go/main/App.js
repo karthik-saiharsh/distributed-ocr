@@ -6,14 +6,14 @@ export function GetClusterNodes() {
   return window['go']['main']['App']['GetClusterNodes']();
 }
 
-export function Greet(arg1) {
-  return window['go']['main']['App']['Greet'](arg1);
-}
-
 export function KillNode() {
   return window['go']['main']['App']['KillNode']();
 }
 
 export function ScanForNodes() {
   return window['go']['main']['App']['ScanForNodes']();
+}
+
+export function UploadDocument() {
+  return window['go']['main']['App']['UploadDocument']();
 }
