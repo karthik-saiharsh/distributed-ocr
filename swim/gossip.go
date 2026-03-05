@@ -161,6 +161,7 @@ func (g *gossip) onTimeout(nodeID string) {
 		svc.emitUpdate()
 
 		// Arm the dead timer
+		// NARROW LOCK: Only lock for map access, not during callbacks!
 		g.suspectMu.Lock()
 		if t, ok := g.deadTimers[nodeID]; ok {
 			t.Stop()
@@ -192,6 +193,7 @@ func (g *gossip) onDeadTimeout(nodeID string) {
 		svc.emitUpdate()
 
 		// Arm the Reclaim timer to actually wipe this node from memory
+		// NARROW LOCK: Only lock for map access
 		g.suspectMu.Lock()
 		if t, ok := g.reclaimTimers[nodeID]; ok {
 			t.Stop()
