@@ -9,6 +9,7 @@ import {
     IconScan,
     IconUpload,
     IconServer,
+    IconFileText,
 } from '../components/Icons';
 import { swim } from '../../wailsjs/go/models';
 
@@ -18,6 +19,9 @@ interface DashboardProps {
     scanning: boolean;
     onScan: () => void;
     onUpload: () => void;
+    completedCount: number;
+    queueDepth: number;
+    jobCount: number;
     onNavigate: (page: string) => void;
 }
 
@@ -27,6 +31,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     scanning,
     onScan,
     onUpload,
+    completedCount,
+    queueDepth,
+    jobCount,
     onNavigate,
 }) => {
     const aliveCount = nodes.filter((n) => n.status === 'Alive').length;
@@ -80,13 +87,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                 />
                 <StatCard
                     icon={<IconCheck width={20} height={20} />}
-                    value={0}
+                    value={completedCount}
                     label="Jobs Completed"
                     color="purple"
                 />
                 <StatCard
                     icon={<IconQueue width={20} height={20} />}
-                    value={0}
+                    value={queueDepth}
                     label="Queue Depth"
                     color="amber"
                 />
@@ -227,6 +234,28 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <div style={{ flex: 1 }}>
                                     <span className="activity-text">
                                         <strong>{nodes.length - 1} peer(s)</strong> discovered via network scan
+                                    </span>
+                                    <div className="activity-time">Recently</div>
+                                </div>
+                            </div>
+                        )}
+                        {jobCount > 0 && (
+                            <div className="activity-item">
+                                <span className="activity-dot" style={{ background: 'var(--accent-cyan)' }} />
+                                <div style={{ flex: 1 }}>
+                                    <span className="activity-text">
+                                        <strong>{jobCount} document(s)</strong> uploaded for OCR processing
+                                    </span>
+                                    <div className="activity-time">Recently</div>
+                                </div>
+                            </div>
+                        )}
+                        {completedCount > 0 && (
+                            <div className="activity-item">
+                                <span className="activity-dot" style={{ background: 'var(--accent-green)' }} />
+                                <div style={{ flex: 1 }}>
+                                    <span className="activity-text">
+                                        <strong>{completedCount} job(s)</strong> completed — consensus verified ✓
                                     </span>
                                     <div className="activity-time">Recently</div>
                                 </div>

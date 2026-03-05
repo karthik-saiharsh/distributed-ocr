@@ -5,18 +5,22 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"sync"
 )
 
 // Server handles listening for incoming RPC connections.
 type Server struct {
 	port     int
 	listener net.Listener
+	doneCh   chan struct{}
+	once     sync.Once
 }
 
 // NewServer creates a new RPC server on the specified port.
 func NewServer(port int) *Server {
 	return &Server{
-		port: port,
+		port:   port,
+		doneCh: make(chan struct{}),
 	}
 }
 
@@ -26,7 +30,7 @@ func (s *Server) Start(receiver interface{}) error {
 	// Create a new RPC server instance instead of using the global DefaultServer
 	// This prevents issues if Start is called multiple times (e.g., in tests)
 	rpcServer := rpc.NewServer()
-	
+
 	// Register the receiver (e.g., a Worker object)
 	err := rpcServer.Register(receiver)
 	if err != nil {
@@ -49,7 +53,7 @@ func (s *Server) Start(receiver interface{}) error {
 			if err != nil {
 				// Prevent logging expected errors when the listener is closed
 				select {
-				case <-s.isClosed():
+				case <-s.doneCh:
 					return
 				default:
 					log.Printf("[RPC] Accept error: %v", err)
@@ -65,16 +69,10 @@ func (s *Server) Start(receiver interface{}) error {
 
 // Stop closes the listener and stops accepting new connections.
 func (s *Server) Stop() {
+	s.once.Do(func() {
+		close(s.doneCh)
+	})
 	if s.listener != nil {
 		s.listener.Close()
 	}
-}
-
-// Internal helper to check if listener is closed based on error type
-// A bit hacky, normally you'd use a context or a done channel.
-func (s *Server) isClosed() <-chan struct{} {
-	ch := make(chan struct{})
-	// Just a dummy channel that never closes for this simple implementation
-	// The Accept loop will naturally break if the listener is closed.
-	return ch
 }

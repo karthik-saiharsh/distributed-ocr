@@ -6,6 +6,14 @@ export function GetClusterNodes() {
   return window['go']['main']['App']['GetClusterNodes']();
 }
 
+export function GetCompletedJobs() {
+  return window['go']['main']['App']['GetCompletedJobs']();
+}
+
+export function GetQueueDepth() {
+  return window['go']['main']['App']['GetQueueDepth']();
+}
+
 export function KillNode() {
   return window['go']['main']['App']['KillNode']();
 }

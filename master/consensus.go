@@ -102,3 +102,46 @@ func (c *ConsensusEngine) GetVerifiedResult(jobID string, expectedPages int) (st
 
 	return fullText, true
 }
+
+// GetCompletedPageCount returns how many pages have been verified for a job.
+func (c *ConsensusEngine) GetCompletedPageCount(jobID string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	pages, ok := c.verifiedData[jobID]
+	if !ok {
+		return 0
+	}
+	return len(pages)
+}
+
+// CompletedJob holds the metadata for a finished job.
+type CompletedJob struct {
+	JobID      string `json:"jobId"`
+	Text       string `json:"text"`
+	TotalPages int    `json:"totalPages"`
+}
+
+// GetAllCompletedJobs returns a list of all jobs that have been fully verified.
+// It requires a lookup function to resolve totalPages for each job.
+func (c *ConsensusEngine) GetAllCompletedJobs(getJobTotal func(jobID string) int) []CompletedJob {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var completed []CompletedJob
+	for jobID, pages := range c.verifiedData {
+		total := getJobTotal(jobID)
+		if total > 0 && len(pages) >= total {
+			var fullText string
+			for i := 1; i <= total; i++ {
+				fullText += pages[i] + "\n\n"
+			}
+			completed = append(completed, CompletedJob{
+				JobID:      jobID,
+				Text:       fullText,
+				TotalPages: total,
+			})
+		}
+	}
+	return completed
+}
