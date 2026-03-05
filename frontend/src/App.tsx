@@ -54,8 +54,8 @@ const App = () => {
     });
 
     // Subscribe to job progress events.
-    const unsub2 = EventsOn('job:progress', (data: any) => {
-      if (!data) return;
+    const unsub2 = EventsOn('job:progress', (data: { jobId: string; taskId: string; pageNum: number; totalPages: number; completedPages: number; }) => {
+        if (!data) return;
       setJobs((prev) => {
         const idx = prev.findIndex((j) => j.id === data.jobId);
         if (idx === -1) return prev; // Job not tracked yet
@@ -71,8 +71,8 @@ const App = () => {
     });
 
     // Subscribe to document completion events.
-    const unsub3 = EventsOn('document:complete', (data: any) => {
-      if (!data) return;
+    const unsub3 = EventsOn('document:complete', (data: { jobId: string; text: string; totalPages: number; }) => {
+        if (!data) return;
       setCompletedDocs((prev) => {
         // Dedup: don't add the same job twice
         if (prev.some((d) => d.jobId === data.jobId)) return prev;

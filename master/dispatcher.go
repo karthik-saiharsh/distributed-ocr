@@ -188,6 +188,15 @@ func (d *Dispatcher) assignAndVerify(task rpc.TaskRequest, worker swim.Node) {
 			"totalPages":     job.TotalTasks,
 			"completedPages": completedPages,
 		})
+
+		// Track overall progress visually via ocr:progress format requested
+		percentage := (float64(completedPages) / float64(job.TotalTasks)) * 100
+		runtime.EventsEmit(d.ctx, "ocr:progress", map[string]interface{}{
+			"percentage": percentage,
+			"completed":  completedPages,
+			"total":      job.TotalTasks,
+			"nodeID":     resp.WorkerID,
+		})
 	}
 
 	// ok is true ONLY when this specific task pushed the final consensus over the finish line
