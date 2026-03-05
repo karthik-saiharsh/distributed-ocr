@@ -166,3 +166,13 @@ func (a *App) UploadDocument() (int, error) {
 
 	return numPages, nil
 }
+
+// GetQueueDepth is a Wails bound method that returns the current number of pending tasks.
+func (a *App) GetQueueDepth() int {
+	return a.dispatcher.Queue.Len()
+}
+
+// GetCompletedJobs is a Wails bound method that returns all completed and verified OCR results.
+func (a *App) GetCompletedJobs() []master.CompletedJob {
+	return a.dispatcher.GetCompletedJobs()
+}

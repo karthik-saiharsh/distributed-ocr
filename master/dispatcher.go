@@ -141,19 +141,52 @@ func (d *Dispatcher) assignAndVerify(task rpc.TaskRequest, worker swim.Node) {
 		return
 	}
 
+	// Emit per-page progress event so the frontend can update progress bars
+	completedPages := d.Consensus.GetCompletedPageCount(task.JobID)
+	if d.ctx != nil {
+		runtime.EventsEmit(d.ctx, "job:progress", map[string]interface{}{
+			"jobId":          task.JobID,
+			"taskId":         task.TaskID,
+			"pageNum":        task.PageNum,
+			"totalPages":     job.TotalTasks,
+			"completedPages": completedPages,
+		})
+	}
+
 	// ok is true ONLY when this specific task pushed the final consensus over the finish line
 	if ok {
+		// Dedup guard: only emit document:complete once per job
+		d.emitMu.Lock()
+		if d.emittedJobs[task.JobID] {
+			d.emitMu.Unlock()
+			return
+		}
+		d.emittedJobs[task.JobID] = true
+		d.emitMu.Unlock()
+
 		fullText, _ := d.Consensus.GetVerifiedResult(task.JobID, job.TotalTasks)
 		log.Printf("[Master] 🟢 JOB %s COMPLETED 100%%! emitting to Frontend.", task.JobID)
 
 		// Emit event containing the final OCR text payload right to React
 		if d.ctx != nil {
-			runtime.EventsEmit(d.ctx, "document:complete", map[string]string{
-				"jobId": task.JobID,
-				"text":  fullText,
+			runtime.EventsEmit(d.ctx, "document:complete", map[string]interface{}{
+				"jobId":      task.JobID,
+				"text":       fullText,
+				"totalPages": job.TotalTasks,
 			})
 		}
 	}
+}
+
+// GetCompletedJobs returns all fully verified jobs from the consensus engine.
+func (d *Dispatcher) GetCompletedJobs() []CompletedJob {
+	return d.Consensus.GetAllCompletedJobs(func(jobID string) int {
+		job, exists := d.Queue.GetJob(jobID)
+		if !exists {
+			return 0
+		}
+		return job.TotalTasks
+	})
 }
 
 // pickTwoDistinct randomly selects two distinct nodes from the list.

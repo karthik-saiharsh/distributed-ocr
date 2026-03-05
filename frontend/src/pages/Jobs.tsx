@@ -1,34 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { IconUpload, IconFileText, IconQueue, IconCheck } from '../components/Icons';
-
-interface Job {
-    id: string;
-    name: string;
-    pages: number;
-    status: 'processing' | 'queued' | 'completed';
-    progress: number; // 0-100
-}
+import type { JobInfo } from '../App';
 
 interface JobsProps {
+    jobs: JobInfo[];
     onUpload: () => void;
 }
 
-const Jobs: React.FC<JobsProps> = ({ onUpload }) => {
-    // Track jobs locally. In a full integration, this would come from backend events.
-    const [jobs, setJobs] = useState<Job[]>([]);
-    const [uploadCount, setUploadCount] = useState(0);
-
-    const handleUpload = () => {
-        onUpload();
-        const newJob: Job = {
-            id: `job-${Date.now()}`,
-            name: `Document ${uploadCount + 1}`,
-            pages: 5,
-            status: 'queued',
-            progress: 0,
-        };
-        setJobs((prev) => [newJob, ...prev]);
-        setUploadCount((c) => c + 1);
+const Jobs: React.FC<JobsProps> = ({ jobs, onUpload }) => {
+    const getProgress = (job: JobInfo): number => {
+        if (job.status === 'completed') return 100;
+        if (job.totalPages === 0) return 0;
+        return Math.round((job.completedPages / job.totalPages) * 100);
     };
 
     return (
@@ -41,7 +24,7 @@ const Jobs: React.FC<JobsProps> = ({ onUpload }) => {
             </div>
 
             {/* Upload Zone */}
-            <div className="upload-zone" onClick={handleUpload}>
+            <div className="upload-zone" onClick={onUpload}>
                 <div className="upload-zone-icon">
                     <IconUpload width={28} height={28} />
                 </div>
@@ -49,7 +32,7 @@ const Jobs: React.FC<JobsProps> = ({ onUpload }) => {
                 <div className="upload-zone-subtitle">
                     Click to upload a PDF for distributed OCR processing
                 </div>
-                <button className="btn btn-primary" style={{ marginTop: '8px' }} onClick={(e) => { e.stopPropagation(); handleUpload(); }}>
+                <button className="btn btn-primary" style={{ marginTop: '8px' }} onClick={(e) => { e.stopPropagation(); onUpload(); }}>
                     <IconUpload className="btn-icon" />
                     Choose File
                 </button>
@@ -74,53 +57,65 @@ const Jobs: React.FC<JobsProps> = ({ onUpload }) => {
                         </div>
                     </div>
                 ) : (
-                    jobs.map((job) => (
-                        <div key={job.id} className="list-item">
-                            <div
-                                className="list-item-icon"
-                                style={{
-                                    background:
-                                        job.status === 'completed'
-                                            ? 'var(--accent-green-dim)'
-                                            : job.status === 'processing'
-                                                ? 'rgba(99, 102, 241, 0.12)'
-                                                : 'var(--accent-amber-dim)',
-                                    color:
-                                        job.status === 'completed'
-                                            ? 'var(--accent-green)'
-                                            : job.status === 'processing'
-                                                ? 'var(--accent-blue)'
-                                                : 'var(--accent-amber)',
-                                }}
-                            >
-                                {job.status === 'completed' ? (
-                                    <IconCheck width={20} height={20} />
-                                ) : (
-                                    <IconFileText width={20} height={20} />
-                                )}
-                            </div>
-                            <div className="list-item-content">
-                                <div className="list-item-title">{job.name}</div>
-                                <div className="list-item-sub">
-                                    {job.pages} pages • {job.status === 'completed' ? 'Completed' : job.status === 'processing' ? 'Processing' : 'Queued'}
+                    jobs.map((job) => {
+                        const progress = getProgress(job);
+                        return (
+                            <div key={job.id} className="list-item">
+                                <div
+                                    className="list-item-icon"
+                                    style={{
+                                        background:
+                                            job.status === 'completed'
+                                                ? 'var(--accent-green-dim)'
+                                                : job.status === 'processing'
+                                                    ? 'rgba(99, 102, 241, 0.12)'
+                                                    : 'var(--accent-amber-dim)',
+                                        color:
+                                            job.status === 'completed'
+                                                ? 'var(--accent-green)'
+                                                : job.status === 'processing'
+                                                    ? 'var(--accent-blue)'
+                                                    : 'var(--accent-amber)',
+                                    }}
+                                >
+                                    {job.status === 'completed' ? (
+                                        <IconCheck width={20} height={20} />
+                                    ) : (
+                                        <IconFileText width={20} height={20} />
+                                    )}
                                 </div>
-                                {job.status !== 'completed' && (
-                                    <div className="progress-bar-track" style={{ marginTop: 8 }}>
-                                        <div
-                                            className="progress-bar-fill"
-                                            style={{ width: `${job.progress}%` }}
-                                        />
+                                <div className="list-item-content">
+                                    <div className="list-item-title">{job.name}</div>
+                                    <div className="list-item-sub">
+                                        {job.totalPages} pages • {job.completedPages}/{job.totalPages} verified •{' '}
+                                        {job.status === 'completed' ? 'Completed' : job.status === 'processing' ? 'Processing' : 'Queued'}
                                     </div>
-                                )}
+                                    {job.status !== 'completed' && (
+                                        <div className="progress-bar-track" style={{ marginTop: 8 }}>
+                                            <div
+                                                className="progress-bar-fill"
+                                                style={{ width: `${progress}%` }}
+                                            />
+                                        </div>
+                                    )}
+                                    {job.status === 'completed' && (
+                                        <div className="progress-bar-track" style={{ marginTop: 8 }}>
+                                            <div
+                                                className="progress-bar-fill"
+                                                style={{ width: '100%', background: 'var(--accent-green)' }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="list-item-meta">
+                                    <span className={`badge ${job.status === 'completed' ? 'alive' : job.status === 'processing' ? 'suspect' : 'dead'}`}>
+                                        <span className="badge-dot" />
+                                        {job.status === 'completed' ? 'Done' : job.status === 'processing' ? `${progress}%` : 'Queued'}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="list-item-meta">
-                                <span className={`badge ${job.status === 'completed' ? 'alive' : job.status === 'processing' ? 'alive' : 'suspect'}`}>
-                                    <span className="badge-dot" />
-                                    {job.status === 'completed' ? 'Done' : job.status === 'processing' ? 'Active' : 'Queued'}
-                                </span>
-                            </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>
