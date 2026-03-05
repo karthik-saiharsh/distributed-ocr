@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 
+	"os"
+
 	"dist-ocr/master"
 	"dist-ocr/rpc"
 	"dist-ocr/swim"
@@ -40,7 +42,11 @@ func NewApp() *App {
 		flag.Parse()
 	}
 
-	nodeID := uuid.New().String()
+	host, err := os.Hostname()
+	if err != nil {
+		host = "node"
+	}
+	nodeID := fmt.Sprintf("%s-%s", host, uuid.New().String()[:8])
 	svc := swim.NewSWIMService(nodeID, localIP, basePort)
 
 	// Run the RPC server on port+1 (e.g. 7947 by default)
