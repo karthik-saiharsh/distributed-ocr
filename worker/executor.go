@@ -128,6 +128,33 @@ func (e *Executor) StartBackgroundWorker() {
 			}
 		}
 	}()
+
+	e.StartHeartbeatLoop()
+}
+
+// StartHeartbeatLoop continuously sends heartbeats to all Alive cluster nodes.
+// Because we don't know who the "true" master is, we shotgun it to everyone.
+// If they are not running MasterRPC, the call harmlessly fails.
+func (e *Executor) StartHeartbeatLoop() {
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			nodes := e.swimSvc.GetClusterNodes()
+			for _, n := range nodes {
+				if n.Status == swim.StatusAlive && n.ID != e.ID {
+					addr := fmt.Sprintf("%s:%d", n.IP, n.Port+1)
+					go func(target string) {
+						client, err := rpc.NewClient(target)
+						if err == nil {
+							client.SendHeartbeat(rpc.HeartbeatRequest{WorkerID: e.ID})
+							client.Close()
+						}
+					}(addr)
+				}
+			}
+		}
+	}()
 }
 
 func (e *Executor) processTask(task rpc.TaskRequest) {

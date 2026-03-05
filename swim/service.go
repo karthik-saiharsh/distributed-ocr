@@ -23,6 +23,11 @@ type SWIMService struct {
 	net    *Network
 	gossip *gossip
 	ctx    context.Context // Wails runtime context for event emission
+
+	// Hooks for logging and external reactions to membership changes
+	NotifyAlive   func(Node)
+	NotifySuspect func(Node)
+	NotifyDead    func(Node)
 }
 
 // NewSWIMService constructs a SWIMService for the local node.
@@ -42,6 +47,12 @@ func NewSWIMService(selfID, ip string, port int) *SWIMService {
 		},
 		Members: NewMembershipList(),
 	}
+
+	// Default hooks print to log but can be overridden.
+	svc.NotifyAlive = func(n Node) { log.Printf("[Hook] Node %s (%s) is Alive", n.ID, n.IP) }
+	svc.NotifySuspect = func(n Node) { log.Printf("[Hook] Node %s (%s) is Suspect", n.ID, n.IP) }
+	svc.NotifyDead = func(n Node) { log.Printf("[Hook] Node %s (%s) is Dead", n.ID, n.IP) }
+
 	svc.net = newNetwork(svc)
 	svc.gossip = newGossip(svc)
 	return svc

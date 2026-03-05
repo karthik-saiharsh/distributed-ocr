@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	heartbeatInterval = 500 * time.Millisecond // how often we ping a peer
-	pingTimeout       = 200 * time.Millisecond // how long to wait for an ACK
+	ProbeInterval = 500 * time.Millisecond // how often we ping a peer
+	ProbeTimeout  = 200 * time.Millisecond // how long to wait for an ACK
+	SuspicionMult = 4                      // multiplier for suspect to dead timeout
 )
 
 // gossip manages the heartbeat loop and failure detection timers.
@@ -19,6 +20,7 @@ type gossip struct {
 	stopCh        chan struct{}
 	suspectMu     sync.Mutex
 	suspectTimers map[string]*time.Timer // nodeID -> pending suspect timer
+	deadTimers    map[string]*time.Timer // nodeID -> pending dead timer
 }
 
 // newGossip creates a gossip engine bound to the given service.
@@ -27,13 +29,14 @@ func newGossip(svc *SWIMService) *gossip {
 		service:       svc,
 		stopCh:        make(chan struct{}),
 		suspectTimers: make(map[string]*time.Timer),
+		deadTimers:    make(map[string]*time.Timer),
 	}
 }
 
 // Start launches the heartbeat goroutine. Call Stop() to shut it down.
 func (g *gossip) Start() {
 	go g.heartbeatLoop()
-	log.Printf("[SWIM] gossip engine started (interval=%s, timeout=%s)", heartbeatInterval, pingTimeout)
+	log.Printf("[SWIM] gossip engine started (interval=%s, timeout=%s, suspectMult=%d)", ProbeInterval, ProbeTimeout, SuspicionMult)
 }
 
 // Stop signals the heartbeat loop to exit.
@@ -43,7 +46,7 @@ func (g *gossip) Stop() {
 
 // heartbeatLoop fires on every heartbeatInterval tick.
 func (g *gossip) heartbeatLoop() {
-	ticker := time.NewTicker(heartbeatInterval)
+	ticker := time.NewTicker(ProbeInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -112,7 +115,7 @@ func (g *gossip) armSuspectTimer(nodeID string) {
 		t.Stop()
 	}
 
-	g.suspectTimers[nodeID] = time.AfterFunc(pingTimeout, func() {
+	g.suspectTimers[nodeID] = time.AfterFunc(ProbeTimeout, func() {
 		g.onTimeout(nodeID)
 	})
 }
@@ -126,9 +129,13 @@ func (g *gossip) cancelSuspectTimer(nodeID string) {
 		t.Stop()
 		delete(g.suspectTimers, nodeID)
 	}
+	if t, ok := g.deadTimers[nodeID]; ok {
+		t.Stop()
+		delete(g.deadTimers, nodeID)
+	}
 }
 
-// onTimeout is called when a PING ACK was not received within pingTimeout.
+// onTimeout is called when a PING ACK was not received within ProbeTimeout.
 func (g *gossip) onTimeout(nodeID string) {
 	svc := g.service
 	node, ok := svc.Members.Get(nodeID)
@@ -140,6 +147,42 @@ func (g *gossip) onTimeout(nodeID string) {
 		node.LastUpdated = time.Now()
 		svc.Members.Set(node)
 		log.Printf("[SWIM] node %s is now SUSPECT (no ACK)", nodeID)
+		
+		if svc.NotifySuspect != nil {
+			svc.NotifySuspect(*node)
+		}
+		
+		svc.emitUpdate()
+
+		// Arm the dead timer
+		g.suspectMu.Lock()
+		if t, ok := g.deadTimers[nodeID]; ok {
+			t.Stop()
+		}
+		g.deadTimers[nodeID] = time.AfterFunc(SuspicionMult*ProbeInterval, func() {
+			g.onDeadTimeout(nodeID)
+		})
+		g.suspectMu.Unlock()
+	}
+}
+
+// onDeadTimeout is called when the suspect node has not recovered before the timeout
+func (g *gossip) onDeadTimeout(nodeID string) {
+	svc := g.service
+	node, ok := svc.Members.Get(nodeID)
+	if !ok {
+		return
+	}
+	if node.Status == StatusSuspect {
+		node.Status = StatusDead
+		node.LastUpdated = time.Now()
+		svc.Members.Set(node)
+		log.Printf("[SWIM] node %s is now DEAD (timeout)", nodeID)
+		
+		if svc.NotifyDead != nil {
+			svc.NotifyDead(*node)
+		}
+
 		svc.emitUpdate()
 	}
 }

@@ -160,8 +160,8 @@ func TestSuspectTimerCancellation(t *testing.T) {
 	g.armSuspectTimer("peer-1")
 	g.cancelSuspectTimer("peer-1")
 
-	// Wait longer than pingTimeout to confirm the node was NOT marked Suspect.
-	time.Sleep(pingTimeout + 50*time.Millisecond)
+	// Wait longer than ProbeTimeout to confirm the node was NOT marked Suspect.
+	time.Sleep(ProbeTimeout + 50*time.Millisecond)
 
 	node, _ := svc.Members.Get("peer-1")
 	if node != nil && node.Status == StatusSuspect {
@@ -177,7 +177,7 @@ func TestSuspectTimerFires(t *testing.T) {
 	g.armSuspectTimer("peer-2")
 
 	// Wait for the timer to fire.
-	time.Sleep(pingTimeout + 100*time.Millisecond)
+	time.Sleep(ProbeTimeout + 100*time.Millisecond)
 
 	node, _ := svc.Members.Get("peer-2")
 	if node == nil || node.Status != StatusSuspect {

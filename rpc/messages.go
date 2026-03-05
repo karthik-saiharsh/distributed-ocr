@@ -27,3 +27,8 @@ type StealRequest struct {
 type StealResponse struct {
 	Tasks []TaskRequest `json:"tasks"`
 }
+
+// HeartbeatRequest represents an application-layer keepalive sent from Worker to Master.
+type HeartbeatRequest struct {
+	WorkerID string `json:"workerId"`
+}

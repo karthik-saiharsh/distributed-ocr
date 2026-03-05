@@ -71,9 +71,10 @@ func (a *App) startup(ctx context.Context) {
 		fmt.Printf("[App] Failed to start SWIM service: %v\n", err)
 	}
 
-	// 2. Start Worker RPC Server and Background Stealing Loop
+	// 2. Start Worker RPC Server and Master RPC Server, and Background Stealing Loop
 	workerRPC := worker.NewWorkerRPC(a.executor)
-	if err := a.rpcServer.Start(workerRPC); err != nil {
+	masterRPC := master.NewMasterRPC(a.dispatcher)
+	if err := a.rpcServer.Start(workerRPC, masterRPC); err != nil {
 		fmt.Printf("[App] Failed to start RPC Server: %v\n", err)
 	}
 	a.executor.StartBackgroundWorker()

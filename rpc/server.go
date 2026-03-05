@@ -24,17 +24,19 @@ func NewServer(port int) *Server {
 	}
 }
 
-// Start registers the provided receiver (the object handling the methods)
+// Start registers the provided receivers (the objects handling the methods)
 // and begins listening for incoming TCP RPC connections in a background goroutine.
-func (s *Server) Start(receiver interface{}) error {
+func (s *Server) Start(receivers ...interface{}) error {
 	// Create a new RPC server instance instead of using the global DefaultServer
 	// This prevents issues if Start is called multiple times (e.g., in tests)
 	rpcServer := rpc.NewServer()
 
-	// Register the receiver (e.g., a Worker object)
-	err := rpcServer.Register(receiver)
-	if err != nil {
-		return fmt.Errorf("failed to register RPC receiver: %w", err)
+	// Register the receivers (e.g., WorkerRPC, MasterRPC)
+	for _, receiver := range receivers {
+		err := rpcServer.Register(receiver)
+		if err != nil {
+			return fmt.Errorf("failed to register RPC receiver: %w", err)
+		}
 	}
 
 	addr := fmt.Sprintf(":%d", s.port)
