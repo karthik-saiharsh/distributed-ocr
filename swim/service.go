@@ -23,6 +23,11 @@ type SWIMService struct {
 	net    *Network
 	gossip *gossip
 	ctx    context.Context // Wails runtime context for event emission
+
+	// Hooks for logging and external reactions to membership changes
+	NotifyAlive   func(Node)
+	NotifySuspect func(Node)
+	NotifyDead    func(Node)
 }
 
 // NewSWIMService constructs a SWIMService for the local node.
@@ -38,10 +43,17 @@ func NewSWIMService(selfID, ip string, port int) *SWIMService {
 			IP:          ip,
 			Port:        port,
 			Status:      StatusAlive,
+			Incarnation: 0,
 			LastUpdated: time.Now(),
 		},
 		Members: NewMembershipList(),
 	}
+
+	// Default hooks print to log but can be overridden.
+	svc.NotifyAlive = func(n Node) { log.Printf("[Hook] Node %s (%s) is Alive", n.ID, n.IP) }
+	svc.NotifySuspect = func(n Node) { log.Printf("[Hook] Node %s (%s) is Suspect", n.ID, n.IP) }
+	svc.NotifyDead = func(n Node) { log.Printf("[Hook] Node %s (%s) is Dead", n.ID, n.IP) }
+
 	svc.net = newNetwork(svc)
 	svc.gossip = newGossip(svc)
 	return svc
@@ -68,9 +80,38 @@ func (svc *SWIMService) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the gossip engine and closes the UDP socket.
 func (svc *SWIMService) Stop() {
+	log.Println("[SWIM] Initiating graceful leave...")
+
+	// Mark ourselves dead and increment incarnation so it overrides active StateAlive on peers immediately
+	svc.Members.mu.Lock()
+	svc.Self.Status = StatusDead
+	svc.Self.Incarnation++
+	svc.Self.LastUpdated = time.Now()
+	svc.Members.members[svc.Self.ID] = &svc.Self
+	svc.Members.mu.Unlock()
+
+	// Blast out our new Dead state so peers don't even have to wait for the Suspect timeout
+	leaveMsg := Message{
+		Type:       MsgPing,
+		SenderID:   svc.Self.ID,
+		SenderAddr: svc.selfAddr(),
+		Members:    svc.Members.GetAll(),
+	}
+
+	// Send to all known ALIVE or SUSPECT nodes
+	for _, n := range svc.Members.GetAll() {
+		if n.ID != svc.Self.ID && n.Status != StatusDead {
+			addr := fmt.Sprintf("%s:%d", n.IP, n.Port)
+			_ = svc.net.SendMessage(addr, leaveMsg)
+		}
+	}
+
+	// Give the UDP packets a tiny fraction of a second to flush out before cutting the cord
+	time.Sleep(50 * time.Millisecond)
+
 	svc.gossip.Stop()
 	svc.net.Close()
-	log.Println("[SWIM] service stopped")
+	log.Println("[SWIM] service stopped cleanly")
 }
 
 // GetClusterNodes is the Wails-bound method called by the frontend on load.

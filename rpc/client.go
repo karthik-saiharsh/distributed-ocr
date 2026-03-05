@@ -61,3 +61,13 @@ func (c *Client) SubmitStolenResult(req TaskResponse) (bool, error) {
 	}
 	return ack, nil
 }
+
+// SendHeartbeat sends an application-layer keepalive to the Master.
+func (c *Client) SendHeartbeat(req HeartbeatRequest) (bool, error) {
+	var resp bool
+	err := c.conn.Call("MasterRPC.Heartbeat", req, &resp)
+	if err != nil {
+		return false, fmt.Errorf("RPC SendHeartbeat failed: %w", err)
+	}
+	return resp, nil
+}

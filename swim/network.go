@@ -94,9 +94,13 @@ func (n *Network) handleMessage(msg Message, from *net.UDPAddr) {
 	case MsgPing:
 		// Update the sender's last-seen timestamp.
 		if node, ok := svc.Members.Get(msg.SenderID); ok {
+			prevStatus := node.Status
 			node.LastUpdated = time.Now()
 			node.Status = StatusAlive
 			svc.Members.Set(node)
+			if prevStatus != StatusAlive && svc.NotifyAlive != nil {
+				svc.NotifyAlive(*node)
+			}
 		} else {
 			// First time we see this node — add it.
 			newNode := &Node{
@@ -108,6 +112,9 @@ func (n *Network) handleMessage(msg Message, from *net.UDPAddr) {
 			}
 			svc.Members.Set(newNode)
 			log.Printf("[SWIM] discovered new node %s (%s)", msg.SenderID, from)
+			if svc.NotifyAlive != nil {
+				svc.NotifyAlive(*newNode)
+			}
 		}
 		svc.emitUpdate()
 
@@ -133,6 +140,11 @@ func (n *Network) handleMessage(msg Message, from *net.UDPAddr) {
 				node.LastUpdated = time.Now()
 				svc.Members.Set(node)
 				log.Printf("[SWIM] node %s is now Alive", msg.SenderID)
+
+				if svc.NotifyAlive != nil {
+					svc.NotifyAlive(*node)
+				}
+
 				svc.emitUpdate()
 			} else {
 				node.LastUpdated = time.Now()

@@ -75,8 +75,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="stat-grid">
                 <StatCard
                     icon={<IconCluster width={20} height={20} />}
-                    value={totalNodes}
-                    label="Total Nodes"
+                    value={aliveCount + suspectCount} // Exclude dead nodes from 'Total' metric
+                    label="Total Active Nodes"
                     color="blue"
                 />
                 <StatCard

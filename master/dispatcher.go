@@ -29,17 +29,41 @@ type Dispatcher struct {
 
 	// RPC Port for connecting to workers
 	rpcPort int
+
+	// Application-layer heartbeat tracking
+	hbMu             sync.RWMutex
+	workerHeartbeats map[string]time.Time
 }
 
 func NewDispatcher(cluster *swim.SWIMService, rpcPort int) *Dispatcher {
 	return &Dispatcher{
-		Queue:       NewGlobalQueue(),
-		Consensus:   NewConsensusEngine(),
-		cluster:     cluster,
-		stopCh:      make(chan struct{}),
-		rpcPort:     rpcPort,
-		emittedJobs: make(map[string]bool),
+		Queue:            NewGlobalQueue(),
+		Consensus:        NewConsensusEngine(),
+		cluster:          cluster,
+		stopCh:           make(chan struct{}),
+		rpcPort:          rpcPort,
+		emittedJobs:      make(map[string]bool),
+		workerHeartbeats: make(map[string]time.Time),
 	}
+}
+
+// MasterRPC is the RPC wrapper for the Master node
+type MasterRPC struct {
+	dispatcher *Dispatcher
+}
+
+// NewMasterRPC creates the RPC-compatible wrapper.
+func NewMasterRPC(disp *Dispatcher) *MasterRPC {
+	return &MasterRPC{dispatcher: disp}
+}
+
+// Heartbeat records a keep-alive ping from a worker
+func (m *MasterRPC) Heartbeat(req rpc.HeartbeatRequest, resp *bool) error {
+	m.dispatcher.hbMu.Lock()
+	m.dispatcher.workerHeartbeats[req.WorkerID] = time.Now()
+	m.dispatcher.hbMu.Unlock()
+	*resp = true
+	return nil
 }
 
 // Start begins the background dispatch loop.
@@ -71,11 +95,24 @@ func (d *Dispatcher) dispatchLoop() {
 			// Get active (Alive) nodes from SWIM
 			allNodes := d.cluster.GetClusterNodes()
 			var aliveNodes []swim.Node
+			d.hbMu.RLock()
+			now := time.Now()
 			for _, n := range allNodes {
 				if n.Status == swim.StatusAlive {
-					aliveNodes = append(aliveNodes, n)
+					// Check application-layer heartbeat
+					lastHb, ok := d.workerHeartbeats[n.ID]
+					// Include if heartbeated recently (3 misses = 1.5s), or just joined (allow some grace period?)
+					// Actually, if they haven't heartbeated yet, we can skip them to be safe,
+					// but let's give a 2-second grace period for initial startup.
+					// We'll just be strict: if missing or > 1.5s, skip task scheduling
+					if ok && now.Sub(lastHb) <= 1500*time.Millisecond {
+						aliveNodes = append(aliveNodes, n)
+					} else if ok {
+						log.Printf("[Master] Skipping worker %s... missed app-layer heartbeats", n.ID)
+					}
 				}
 			}
+			d.hbMu.RUnlock()
 
 			// DEBUG: Print state when queue has items
 			log.Printf("[Master] Dispatch loop running. Queue Size: %d, Alive Nodes: %d", d.Queue.Len(), len(aliveNodes))
@@ -150,6 +187,15 @@ func (d *Dispatcher) assignAndVerify(task rpc.TaskRequest, worker swim.Node) {
 			"pageNum":        task.PageNum,
 			"totalPages":     job.TotalTasks,
 			"completedPages": completedPages,
+		})
+
+		// Track overall progress visually via ocr:progress format requested
+		percentage := (float64(completedPages) / float64(job.TotalTasks)) * 100
+		runtime.EventsEmit(d.ctx, "ocr:progress", map[string]interface{}{
+			"percentage": percentage,
+			"completed":  completedPages,
+			"total":      job.TotalTasks,
+			"nodeID":     resp.WorkerID,
 		})
 	}
 

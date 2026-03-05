@@ -20,6 +20,7 @@ type Node struct {
 	IP          string     `json:"ip"`
 	Port        int        `json:"port"`
 	Status      NodeStatus `json:"status"`
+	Incarnation uint32     `json:"incarnation"`
 	LastUpdated time.Time  `json:"lastUpdated"`
 }
 

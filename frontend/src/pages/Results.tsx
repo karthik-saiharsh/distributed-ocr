@@ -1,13 +1,50 @@
-import React, { useState } from 'react';
-import { IconResults, IconFileText, IconShield, IconCheck, IconX } from '../components/Icons';
+import React, { useState, useEffect } from 'react';
+import { EventsOn } from '../../wailsjs/runtime/runtime';
+import { IconResults, IconFileText, IconShield, IconCheck, IconX, IconActivity } from '../components/Icons';
 
 interface ResultsProps {
     completedDocs: { jobId: string; text: string; totalPages: number }[];
 }
 
+interface NodeStats {
+    [nodeId: string]: number;
+}
+
 const Results: React.FC<ResultsProps> = ({ completedDocs }) => {
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
     const [copySuccess, setCopySuccess] = useState<string | null>(null);
+
+    // Progress State
+    const [progress, setProgress] = useState(0);
+    const [completed, setCompleted] = useState(0);
+    const [total, setTotal] = useState(0);
+    const [nodeStats, setNodeStats] = useState<NodeStats>({});
+
+    useEffect(() => {
+        const unsub = EventsOn("ocr:progress", (data: { completed: number; percentage: number; total: number; nodeID: string; }) => {
+            if (!data) return;
+            
+            // If it's a new document (completed count reset or total changed significantly and we're at 1)
+            if (data.completed === 1 && data.percentage < 5) {
+                setNodeStats({});
+            }
+
+            setProgress(data.percentage);
+            setCompleted(data.completed);
+            setTotal(data.total);
+
+            if (data.nodeID) {
+                setNodeStats(prev => ({
+                    ...prev,
+                    [data.nodeID]: (prev[data.nodeID] || 0) + 1
+                }));
+            }
+        });
+
+        return () => {
+            unsub();
+        };
+    }, []);
 
     const handleCopy = (text: string, jobId: string) => {
         navigator.clipboard.writeText(text).then(() => {
@@ -90,7 +127,61 @@ const Results: React.FC<ResultsProps> = ({ completedDocs }) => {
                         </div>
                     </div>
                 </>
-            ) : (
+            ) : null}
+
+            {/* Active Progress Tracker */}
+            {total > 0 && progress < 100 && (
+                <div className="card" style={{ marginBottom: '24px', border: '1px solid var(--accent-blue)' }}>
+                    <div className="card-header" style={{ paddingBottom: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div className="list-item-icon" style={{ background: 'rgba(99, 102, 241, 0.12)', color: 'var(--accent-blue)' }}>
+                                <IconActivity width={18} height={18} className="animate-pulse" />
+                            </div>
+                            <div>
+                                <div className="card-title">Processing Document...</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                                    {completed} / {total} pages verified
+                                </div>
+                            </div>
+                        </div>
+                        <div style={{ fontWeight: 600, color: 'var(--accent-blue)', fontSize: '18px' }}>
+                            {Math.round(progress)}%
+                        </div>
+                    </div>
+                    
+                    <div className="card-body" style={{ paddingTop: 0 }}>
+                        <div className="progress-bar-track" style={{ height: '8px', marginBottom: '16px' }}>
+                            <div 
+                                className="progress-bar-fill" 
+                                style={{ 
+                                    width: `${progress}%`, 
+                                    background: 'var(--accent-blue)',
+                                    transition: 'width 0.4s ease-out'
+                                }} 
+                            />
+                        </div>
+
+                        {/* Node Contribution Breakdown */}
+                        {Object.keys(nodeStats).length > 0 && (
+                            <div style={{ marginTop: '12px', padding: '12px', background: 'var(--surface-sunken)', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Cluster Contribution
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {Object.entries(nodeStats).map(([nodeId, count]) => (
+                                        <div key={nodeId} className="badge alive" style={{ padding: '4px 8px' }}>
+                                            <span className="badge-dot" />
+                                            Node {nodeId.slice(0, 4)}: <strong>{count} pages</strong>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {completedDocs.length > 0 && (
                 <div>
                     {completedDocs.map((doc) => {
                         const isExpanded = expandedJobId === doc.jobId;
