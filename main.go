@@ -10,6 +10,8 @@ import (
 
 // embed the assets directly into the compiled binary
 // to avoid shipping required resources in final bundle
+//
+//go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {

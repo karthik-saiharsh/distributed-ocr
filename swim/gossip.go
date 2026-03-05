@@ -79,7 +79,7 @@ func (g *gossip) tick() {
 		return
 	}
 
-	log.Printf("[SWIM] PING → %s (%s)", peer.ID, peerAddr)
+	// log.Printf("[SWIM] PING → %s (%s)", peer.ID, peerAddr)
 	g.armSuspectTimer(peer.ID)
 }
 

@@ -14,6 +14,8 @@ const App = () => {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [nodes, setNodes] = useState<swim.Node[]>([]);
   const [scanning, setScanning] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [completedDocs, setCompletedDocs] = useState<{ jobId: string, text: string }[]>([]);
 
   useEffect(() => {
     // Populate from backend on mount.
@@ -33,7 +35,14 @@ const App = () => {
   };
 
   const handleUpload = () => {
-    UploadDocument();
+    setUploadStatus('Dispatching tasks...');
+    UploadDocument().then((numPages: number) => {
+      setTimeout(() => setUploadStatus(`✅ ${numPages} Tasks successfully dispatched to cluster! Check terminal logs to watch the Workers steal them.`), 500);
+      setTimeout(() => setUploadStatus(''), 7000);
+    }).catch((err: any) => {
+      setUploadStatus(`❌ Error: ${err}`);
+      setTimeout(() => setUploadStatus(''), 5000);
+    });
   };
 
   const handleKillNode = () => {
