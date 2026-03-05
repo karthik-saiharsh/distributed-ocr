@@ -25,9 +25,8 @@ func NewConsensusEngine() *ConsensusEngine {
 }
 
 // SubmitResult is called by the Dispatcher when a worker returns a response over RPC.
-// Returns true if consensus was reached on this submission. Returns false, along with an optional error
-// if a mismatch occurs requiring requeuing.
-func (c *ConsensusEngine) SubmitResult(resp rpc.TaskResponse, pageNum int, jobID string) (bool, error) {
+// Returns (isJobComplete, error)
+func (c *ConsensusEngine) SubmitResult(resp rpc.TaskResponse, pageNum int, jobID string, expectedPages int) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -52,26 +51,32 @@ func (c *ConsensusEngine) SubmitResult(resp rpc.TaskResponse, pageNum int, jobID
 
 	// 3. We have 2+ results. We implement the "Integrity Upgrade"
 	// For MVP, we literally just compare Result A == Result B.
-	
+
 	resultA := submissions[0].ExtractedText
 	resultB := submissions[1].ExtractedText
 
 	if resultA == resultB {
 		log.Printf("[Master] Consensus REACHED for Task %s!", resp.TaskID)
 		c.verifiedData[jobID][pageNum] = resultA
-		
+
 		// Clean up the pending results map for memory
 		delete(c.results, resp.TaskID)
-		return true, nil
+
+		// Check if the entire job is now fully complete!
+		if len(c.verifiedData[jobID]) == expectedPages {
+			return true, nil // Signal the UI that this job is finished
+		}
+
+		return false, nil
 	}
 
-	// 4. Mismatch! 
+	// 4. Mismatch!
 	// This worker gave a different string than the previous worker.
 	log.Printf("[Master] Consensus MISMATCH for Task %s! Req-queueing for tie-breaker.", resp.TaskID)
-	
+
 	// We delete the results so it starts fresh when re-queued.
 	delete(c.results, resp.TaskID)
-	
+
 	return false, fmt.Errorf("consensus mismatch between workers")
 }
 
@@ -94,6 +99,6 @@ func (c *ConsensusEngine) GetVerifiedResult(jobID string, expectedPages int) (st
 	for i := 1; i <= expectedPages; i++ {
 		fullText += pages[i] + "\n\n"
 	}
-	
+
 	return fullText, true
 }

@@ -1,38 +1,29 @@
 package worker
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
+	"os/exec"
 	"strings"
-
-	"github.com/otiai10/gosseract/v2"
 )
 
-// OCREngine wraps the Tesseract OCR client to extract text from images
+// OCREngine uses the local Tesseract CLI to extract text from images
 type OCREngine struct {
-	client *gosseract.Client
+	// No persistent client needed for CLI invocation
 }
 
-// NewOCREngine initializes and configures a reusable Tesseract OCR client.
-// It sets the default language to English and the page segmentation mode to automatic.
+// NewOCREngine initializes the OCR engine.
 func NewOCREngine() (*OCREngine, error) {
-	client := gosseract.NewClient()
-
-	if err := client.SetLanguage("eng"); err != nil {
-		client.Close()
-		return nil, fmt.Errorf("failed to set language to eng: %w", err)
+	// Verify tesseract is installed
+	_, err := exec.LookPath("tesseract")
+	if err != nil {
+		return nil, fmt.Errorf("tesseract CLI not found. Please install it using 'brew install tesseract'")
 	}
 
-	if err := client.SetPageSegMode(gosseract.PSM_AUTO); err != nil {
-		client.Close()
-		return nil, fmt.Errorf("failed to set page segmentation mode: %w", err)
-	}
-
-	log.Println("[OCR] Initialized OCR Engine successfully")
-	return &OCREngine{
-		client: client,
-	}, nil
+	log.Println("[OCR] Initialized OCR Engine successfully via CLI")
+	return &OCREngine{}, nil
 }
 
 // ExtractText loads an image from the provided path, runs OCR, and returns the
@@ -46,29 +37,29 @@ func (o *OCREngine) ExtractText(imagePath string) (string, error) {
 
 	log.Printf("[OCR] Processing image: %s\n", imagePath)
 
-	if err := o.client.SetImage(imagePath); err != nil {
-		log.Printf("[OCR] Error setting image %s: %v\n", imagePath, err)
-		return "", fmt.Errorf("failed to set image: %w", err)
-	}
+	// Invoke the tesseract CLI: `tesseract <imagePath> stdout -l eng --psm 3`
+	cmd := exec.Command("tesseract", imagePath, "stdout", "-l", "eng", "--psm", "3")
 
-	text, err := o.client.Text()
+	var outBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	err := cmd.Run()
 	if err != nil {
-		log.Printf("[OCR] Error processing image %s: %v\n", imagePath, err)
+		log.Printf("[OCR] Error processing image %s: %v. Stderr: %s\n", imagePath, err, errBuf.String())
 		return "", fmt.Errorf("failed to extract text: %w", err)
 	}
 
 	// Normalize and clean up the extracted text
-	result := strings.TrimSpace(text)
+	result := strings.TrimSpace(outBuf.String())
 	result = strings.ReplaceAll(result, "\r\n", "\n")
 
 	log.Println("[OCR] OCR completed successfully")
 	return result, nil
 }
 
-// Close releases the resources held by the underlying gosseract client.
+// Close is a no-op for the CLI engine.
 func (o *OCREngine) Close() {
-	if o.client != nil {
-		o.client.Close()
-		log.Println("[OCR] Closed OCR Engine client")
-	}
+	log.Println("[OCR] Closed OCR Engine client")
 }

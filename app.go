@@ -11,7 +11,9 @@ import (
 	"dist-ocr/swim"
 	"dist-ocr/worker"
 
+	"github.com/gen2brain/go-fitz"
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct holds the Wails application context and the SWIM service.
@@ -41,12 +43,12 @@ func NewApp() *App {
 	nodeID := uuid.New().String()
 	svc := swim.NewSWIMService(nodeID, localIP, basePort)
 
-	// Create Worker Engine
-	exec := worker.NewExecutor(nodeID)
-
 	// Run the RPC server on port+1 (e.g. 7947 by default)
 	rpcPort := basePort + 1
 	rpcServ := rpc.NewServer(rpcPort)
+
+	// Create Worker Engine
+	exec := worker.NewExecutor(nodeID, svc, rpcPort)
 
 	// Create Master Engine
 	disp := master.NewDispatcher(svc, rpcPort)
@@ -69,14 +71,15 @@ func (a *App) startup(ctx context.Context) {
 		fmt.Printf("[App] Failed to start SWIM service: %v\n", err)
 	}
 
-	// 2. Start Worker RPC Server
+	// 2. Start Worker RPC Server and Background Stealing Loop
 	workerRPC := worker.NewWorkerRPC(a.executor)
 	if err := a.rpcServer.Start(workerRPC); err != nil {
 		fmt.Printf("[App] Failed to start RPC Server: %v\n", err)
 	}
+	a.executor.StartBackgroundWorker()
 
 	// 3. Start Master Dispatcher
-	a.dispatcher.Start()
+	a.dispatcher.Start(a.ctx)
 }
 
 // shutdown is called when the application is about to quit.
@@ -103,25 +106,63 @@ func (a *App) KillNode() {
 }
 
 // UploadDocument generates a job with tasks to test the OCR pipeline.
-// Exposed to Wails frontend.
-func (a *App) UploadDocument() {
+// Exposed to Wails frontend. It returns the total number of pages/tasks that will be queued.
+func (a *App) UploadDocument() (int, error) {
+	selection, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Select PDF Document to Distribute",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "PDF Files", Pattern: "*.pdf"},
+		},
+	})
+	if err != nil || selection == "" {
+		log.Printf("[App] Document upload cancelled or failed: %v", err)
+		return 0, fmt.Errorf("upload cancelled")
+	}
+
 	jobID := uuid.New().String()
-	log.Printf("[App] Processing document upload for Job ID: %s", jobID)
+	log.Printf("[App] Processing real document upload %s for Job ID: %s", selection, jobID)
 
-	job := &master.Job{
-		ID:         jobID,
-		TotalTasks: 5, // A 5 page document
-		Tasks:      make([]rpc.TaskRequest, 5),
+	// Quickly evaluate the PDF dimensions synchronously so we can return the task count to React
+	doc, err := fitz.New(selection)
+	if err != nil {
+		log.Printf("[App] Failed to open PDF: %v", err)
+		return 0, err
 	}
+	numPages := doc.NumPage()
 
-	for i := 0; i < 5; i++ {
-		job.Tasks[i] = rpc.TaskRequest{
-			TaskID:  fmt.Sprintf("%s_Pg%d", jobID, i+1),
-			JobID:   jobID,
-			PageNum: i + 1,
+	// 2. Process image extraction asynchronously so the UI does not freeze!
+	go func() {
+		defer doc.Close()
+
+		log.Printf("[App] PDF loaded cleanly. Slicing %d pages into images...", numPages)
+
+		job := &master.Job{
+			ID:         jobID,
+			TotalTasks: numPages,
+			Tasks:      make([]rpc.TaskRequest, numPages),
 		}
-	}
 
-	// Dump them into the active Master Queue
-	a.dispatcher.Queue.AddJob(job)
+		for i := 0; i < numPages; i++ {
+			// Extract page as PNG at 300 DPI for high-quality OCR accuracy
+			log.Printf("[App] Extracting Page %d/%d to internal memory...", i+1, numPages)
+			imgBytes, err := doc.ImagePNG(i, 300.0)
+			if err != nil {
+				log.Printf("[App] Failed to extract page %d: %v", i+1, err)
+				continue
+			}
+
+			job.Tasks[i] = rpc.TaskRequest{
+				TaskID:    fmt.Sprintf("%s_Pg%d", jobID, i+1),
+				JobID:     jobID,
+				PageNum:   i + 1,
+				ImageData: imgBytes, // Ship physical bytes over RPC
+			}
+		}
+
+		// Dump them into the active Master Queue
+		log.Printf("[App] PDF Extraction Complete! %d Tasks queued for distribution.", numPages)
+		a.dispatcher.Queue.AddJob(job)
+	}()
+
+	return numPages, nil
 }

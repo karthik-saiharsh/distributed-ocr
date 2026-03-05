@@ -69,3 +69,11 @@ func (q *GlobalQueue) Len() int {
 	defer q.mu.Unlock()
 	return len(q.queue)
 }
+
+// GetJob safely returns a Job by ID for metadata lookups (like total pages).
+func (q *GlobalQueue) GetJob(jobID string) (*Job, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	job, exists := q.pendingJobs[jobID]
+	return job, exists
+}

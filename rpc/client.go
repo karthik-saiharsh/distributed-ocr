@@ -41,3 +41,23 @@ func (c *Client) AssignTask(req TaskRequest) (*TaskResponse, error) {
 	}
 	return &resp, nil
 }
+
+// StealTask sends a StealRequest to a Worker Node to steal tasks.
+func (c *Client) StealTask(req StealRequest) (*StealResponse, error) {
+	var resp StealResponse
+	err := c.conn.Call("WorkerRPC.StealTask", req, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("RPC StealTask failed: %w", err)
+	}
+	return &resp, nil
+}
+
+// SubmitStolenResult returns a completed task response to the original victim node.
+func (c *Client) SubmitStolenResult(req TaskResponse) (bool, error) {
+	var ack bool
+	err := c.conn.Call("WorkerRPC.SubmitStolenResult", req, &ack)
+	if err != nil {
+		return false, fmt.Errorf("RPC SubmitStolenResult failed: %w", err)
+	}
+	return ack, nil
+}

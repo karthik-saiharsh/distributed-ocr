@@ -160,6 +160,24 @@ func (svc *SWIMService) StartScan() {
 			_ = svc.net.SendMessage(a, ping) // offline hosts simply won't ACK
 		}(addr)
 	}
+
+	// Also probe local development ports on localhost to support single-machine cluster testing
+	for p := 7946; p <= 7956; p += 2 {
+		addr := fmt.Sprintf("127.0.0.1:%d", p)
+		wg.Add(1)
+		go func(a string) {
+			defer wg.Done()
+			_ = svc.net.SendMessage(a, ping)
+		}(addr)
+
+		addrLAN := fmt.Sprintf("%s:%d", svc.Self.IP, p)
+		wg.Add(1)
+		go func(a string) {
+			defer wg.Done()
+			_ = svc.net.SendMessage(a, ping)
+		}(addrLAN)
+	}
+
 	wg.Wait()
 	log.Printf("[SWIM] StartScan complete — %s", network.String())
 }
