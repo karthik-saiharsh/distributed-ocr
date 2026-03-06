@@ -222,7 +222,7 @@ func (d *Dispatcher) assignAndVerify(task rpc.TaskRequest, worker swim.Node) {
 		d.emitMu.Unlock()
 
 		fullText, _ := d.Consensus.GetVerifiedResult(task.JobID, job.TotalTasks)
-		log.Printf("[Master] 🟢 JOB %s COMPLETED 100%%! emitting to Frontend.", task.JobID)
+		log.Printf("[Master] YAYYYY!! JOB %s COMPLETED 100%%! emitting to Frontend.", task.JobID)
 
 		// Emit event containing the final OCR text payload right to React
 		if d.ctx != nil {

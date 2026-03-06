@@ -1,3 +1,22 @@
+export namespace main {
+	
+	export class UploadResponse {
+	    jobId: string;
+	    numPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UploadResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.jobId = source["jobId"];
+	        this.numPages = source["numPages"];
+	    }
+	}
+
+}
+
 export namespace master {
 	
 	export class CompletedJob {
