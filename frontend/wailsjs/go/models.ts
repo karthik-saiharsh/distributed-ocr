@@ -26,6 +26,7 @@ export namespace swim {
 	    ip: string;
 	    port: number;
 	    status: string;
+	    incarnation: number;
 	    // Go type: time
 	    lastUpdated: any;
 	
@@ -39,6 +40,7 @@ export namespace swim {
 	        this.ip = source["ip"];
 	        this.port = source["port"];
 	        this.status = source["status"];
+	        this.incarnation = source["incarnation"];
 	        this.lastUpdated = this.convertValues(source["lastUpdated"], null);
 	    }
 	
