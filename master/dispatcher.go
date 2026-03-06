@@ -98,29 +98,43 @@ func (d *Dispatcher) dispatchLoop() {
 			d.hbMu.RLock()
 			now := time.Now()
 			for _, n := range allNodes {
+				eligible := false
+				reason := ""
+
 				if n.Status == swim.StatusAlive {
-					// Check application-layer heartbeat
-					lastHb, ok := d.workerHeartbeats[n.ID]
-					// Include if heartbeated recently (3 misses = 1.5s), or just joined (allow some grace period?)
-					// Actually, if they haven't heartbeated yet, we can skip them to be safe,
-					// but let's give a 2-second grace period for initial startup.
-					// We'll just be strict: if missing or > 1.5s, skip task scheduling
-					if ok && now.Sub(lastHb) <= 1500*time.Millisecond {
+					// The local node (Master) doesn't send heartbeats to itself, so we must explicitly include it.
+					if n.ID == d.cluster.Self.ID {
 						aliveNodes = append(aliveNodes, n)
-					} else if ok {
-						log.Printf("[Master] Skipping worker %s... missed app-layer heartbeats", n.ID)
+						eligible = true
+						reason = "Local Master node implicitly eligible"
+					} else {
+						// Check application-layer heartbeat
+						lastHb, ok := d.workerHeartbeats[n.ID]
+						if ok && now.Sub(lastHb) <= 1500*time.Millisecond {
+							aliveNodes = append(aliveNodes, n)
+							eligible = true
+							reason = "Recent app-layer heartbeat received"
+						} else if ok {
+							reason = "Missed app-layer heartbeats (stale)"
+						} else {
+							reason = "No app-layer heartbeat received yet"
+						}
 					}
+				} else {
+					reason = string(n.Status)
 				}
+
+				addr := fmt.Sprintf("%s:%d", n.IP, n.Port)
+				log.Printf("[Master Debug] NodeID: %s, Address: %s, State: %s -> Eligible: %v (%s)", n.ID, addr, n.Status, eligible, reason)
 			}
 			d.hbMu.RUnlock()
 
 			// DEBUG: Print state when queue has items
 			log.Printf("[Master] Dispatch loop running. Queue Size: %d, Alive Nodes: %d", d.Queue.Len(), len(aliveNodes))
 
-			// We need at least 2 alive nodes to do redundant assignment!
-			// (During testing you might allow 1, but MVP architecture demands 2)
-			if len(aliveNodes) < 2 {
-				log.Printf("[Master] Dropping task dispatch. Required: 2 nodes. Found: %d", len(aliveNodes))
+			// We only require at least 1 available worker.
+			if len(aliveNodes) < 1 {
+				log.Printf("[Master] Dropping task dispatch. Required: 1 nodes. Found: %d", len(aliveNodes))
 				continue
 			}
 
@@ -130,8 +144,14 @@ func (d *Dispatcher) dispatchLoop() {
 				continue
 			}
 
-			// Pick two distinct random workers to assign this same task to
-			w1, w2 := pickTwoDistinct(aliveNodes)
+			var w1, w2 swim.Node
+			if len(aliveNodes) >= 2 {
+				// Pick two distinct random workers to assign this same task to
+				w1, w2 = pickTwoDistinct(aliveNodes)
+			} else {
+				// Fallback to sending redundant tasks to the same available worker
+				w1, w2 = aliveNodes[0], aliveNodes[0]
+			}
 
 			// Dispatch asynchronously
 			go d.assignAndVerify(task, w1)
