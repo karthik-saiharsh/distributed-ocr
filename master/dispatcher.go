@@ -201,21 +201,12 @@ func (d *Dispatcher) assignAndVerify(task rpc.TaskRequest, worker swim.Node) {
 	// Emit per-page progress event so the frontend can update progress bars
 	completedPages := d.Consensus.GetCompletedPageCount(task.JobID)
 	if d.ctx != nil {
-		runtime.EventsEmit(d.ctx, "job:progress", map[string]interface{}{
-			"jobId":          task.JobID,
-			"taskId":         task.TaskID,
-			"pageNum":        task.PageNum,
-			"totalPages":     job.TotalTasks,
-			"completedPages": completedPages,
-		})
-
-		// Track overall progress visually via ocr:progress format requested
 		percentage := (float64(completedPages) / float64(job.TotalTasks)) * 100
-		runtime.EventsEmit(d.ctx, "ocr:progress", map[string]interface{}{
-			"percentage": percentage,
+		runtime.EventsEmit(d.ctx, "job:progress", map[string]interface{}{
+			"jobID":      task.JobID,
 			"completed":  completedPages,
 			"total":      job.TotalTasks,
-			"nodeID":     resp.WorkerID,
+			"percentage": percentage,
 		})
 	}
 

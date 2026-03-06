@@ -10,6 +10,7 @@ interface JobsProps {
 const Jobs: React.FC<JobsProps> = ({ jobs, onUpload }) => {
     const getProgress = (job: JobInfo): number => {
         if (job.status === 'completed') return 100;
+        if (job.percentage !== undefined) return Math.round(job.percentage);
         if (job.totalPages === 0) return 0;
         return Math.round((job.completedPages / job.totalPages) * 100);
     };
@@ -94,7 +95,7 @@ const Jobs: React.FC<JobsProps> = ({ jobs, onUpload }) => {
                                         <div className="progress-bar-track" style={{ marginTop: 8 }}>
                                             <div
                                                 className="progress-bar-fill"
-                                                style={{ width: `${progress}%` }}
+                                                style={{ width: `${progress}%`, transition: 'width 0.3s ease-in-out' }}
                                             />
                                         </div>
                                     )}
