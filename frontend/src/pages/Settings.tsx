@@ -125,7 +125,7 @@ const Settings: React.FC<SettingsProps> = ({ selfNode, onKillNode }) => {
                 <div className="settings-section-title">About</div>
                 <div className="settings-row">
                     <span className="settings-row-label">Application</span>
-                    <span className="settings-row-value">Swarm OCR (Distributed OCR)</span>
+                    <span className="settings-row-value">DOCR: A Local First OCR Application built on the Work Stealing Algorithm</span>
                 </div>
                 <div className="settings-row">
                     <span className="settings-row-label">Architecture</span>

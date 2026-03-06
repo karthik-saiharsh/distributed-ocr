@@ -35,8 +35,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate, selfNodeIP, s
                     </svg>
                 </div>
                 <div>
-                    <div className="logo-text">Swarm OCR</div>
-                    <div className="logo-sub">Privacy-First Grid</div>
+                    <div className="logo-text">DOCR</div>
+                    <div className="logo-sub">A Local First OCR Application built on the Work Stealing Algorithm</div>
                 </div>
             </div>
 
