@@ -12,7 +12,7 @@ In the modern digital infrastructure, organizations face a massive bottleneck: t
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 *   **Privacy-First & Local:** Zero cloud dependency. Sensitive documents (medical records, legal contracts) never leave your local network. Air-gap friendly.
 *   **Dynamic Load Balancing (Work Stealing):** Idle worker nodes proactively "steal" tasks from busy nodes via direct P2P RPC, ensuring maximum CPU utilization across the cluster.
@@ -23,6 +23,8 @@ In the modern digital infrastructure, organizations face a massive bottleneck: t
 ---
 
 ## System Architecture
+
+<img src="https://github.com/karthik-saiharsh/distributed-ocr/blob/main/Architechture.jpeg?raw=true">System Architechture</img>
 
 The architecture relies on high-performance concurrent processing in Go and robust networking protocols:
 
