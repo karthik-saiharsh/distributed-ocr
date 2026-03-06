@@ -15,6 +15,7 @@ export interface JobInfo {
   name: string;
   totalPages: number;
   completedPages: number;
+  percentage?: number;
   status: 'queued' | 'processing' | 'completed';
 }
 
@@ -54,17 +55,18 @@ const App = () => {
     });
 
     // Subscribe to job progress events.
-    const unsub2 = EventsOn('job:progress', (data: { jobId: string; taskId: string; pageNum: number; totalPages: number; completedPages: number; }) => {
+    const unsub2 = EventsOn('job:progress', (data: { jobID: string; completed: number; total: number; percentage: number }) => {
         if (!data) return;
       setJobs((prev) => {
-        const idx = prev.findIndex((j) => j.id === data.jobId);
+        const idx = prev.findIndex((j) => j.id === data.jobID);
         if (idx === -1) return prev; // Job not tracked yet
         const updated = [...prev];
         updated[idx] = {
           ...updated[idx],
-          completedPages: data.completedPages ?? updated[idx].completedPages,
-          totalPages: data.totalPages ?? updated[idx].totalPages,
-          status: (data.completedPages >= data.totalPages) ? 'completed' : 'processing',
+          completedPages: data.completed ?? updated[idx].completedPages,
+          totalPages: data.total ?? updated[idx].totalPages,
+          percentage: data.percentage,
+          status: (data.completed >= data.total) ? 'completed' : 'processing',
         };
         return updated;
       });
@@ -107,13 +109,15 @@ const App = () => {
   const uploadCount = jobs.length;
 
   const handleUpload = useCallback(() => {
-    UploadDocument().then((numPages: number) => {
-      const jobId = `job-${Date.now()}`;
+    UploadDocument().then((res: any) => {
+      const jobId = res.jobId;
+      const numPages = res.numPages;
       const newJob: JobInfo = {
         id: jobId,
         name: `Document ${uploadCount + 1}`,
         totalPages: numPages,
         completedPages: 0,
+        percentage: 0,
         status: 'queued',
       };
       setJobs((prev) => [newJob, ...prev]);

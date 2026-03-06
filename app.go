@@ -112,9 +112,14 @@ func (a *App) KillNode() {
 	a.swimService.KillNode()
 }
 
+type UploadResponse struct {
+	JobID    string `json:"jobId"`
+	NumPages int    `json:"numPages"`
+}
+
 // UploadDocument generates a job with tasks to test the OCR pipeline.
-// Exposed to Wails frontend. It returns the total number of pages/tasks that will be queued.
-func (a *App) UploadDocument() (int, error) {
+// Exposed to Wails frontend. It returns the total number of pages/tasks that will be queued and the Job UUID.
+func (a *App) UploadDocument() (UploadResponse, error) {
 	selection, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select PDF Document to Distribute",
 		Filters: []runtime.FileFilter{
@@ -123,7 +128,7 @@ func (a *App) UploadDocument() (int, error) {
 	})
 	if err != nil || selection == "" {
 		log.Printf("[App] Document upload cancelled or failed: %v", err)
-		return 0, fmt.Errorf("upload cancelled")
+		return UploadResponse{}, fmt.Errorf("upload cancelled")
 	}
 
 	jobID := uuid.New().String()
@@ -133,7 +138,7 @@ func (a *App) UploadDocument() (int, error) {
 	doc, err := fitz.New(selection)
 	if err != nil {
 		log.Printf("[App] Failed to open PDF: %v", err)
-		return 0, err
+		return UploadResponse{}, err
 	}
 	numPages := doc.NumPage()
 
@@ -171,7 +176,7 @@ func (a *App) UploadDocument() (int, error) {
 		a.dispatcher.Queue.AddJob(job)
 	}()
 
-	return numPages, nil
+	return UploadResponse{JobID: jobID, NumPages: numPages}, nil
 }
 
 // GetQueueDepth is a Wails bound method that returns the current number of pending tasks.
